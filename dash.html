@@ -364,14 +364,14 @@
             <div class="workspace-buttons">
               <button
                 class="btn"
-                data-app="../online/onlinejob.html"
+                data-app="../../apps/online/onlinejob.html"
               >
                 Open Tasker
               </button>
 
               <button
                 class="btn"
-                data-app="../online/onlineinvoice.html"
+                data-app="../../apps/online/onlineinvoice.html"
               >
                 Open Invoice
               </button>
@@ -396,12 +396,13 @@
         ref,
         set,
         get,
+        push,
         remove,
         onValue,
         signOut,
         onAuthStateChanged,
         signInWithEmailAndPassword,
-      } from "../../assets/js/firebase-init.js";
+      } from "./assets/js/firebase-init.js";
 
       const loginForm  = document.getElementById("login-form");
       const logoutBtn  = document.getElementById("logout");
@@ -436,8 +437,10 @@
 
       let allTickets = {};
       let isAdmin = false;
+      let currentUser = null;
 
       onAuthStateChanged(auth, async (user) => {
+        currentUser = user || null;
         if (!user) {
           isAdmin = false;
 
@@ -617,8 +620,8 @@
                 Completed
               </button>
 
-              <button class="btn" data-tasker="true">
-                Open Tasker
+              <button class="btn" data-convert="true">
+                → Job
               </button>
 
               <button class="btn" data-invoice="true">
@@ -651,12 +654,42 @@
             });
           });
 
-          card.querySelector("[data-tasker]").addEventListener("click", () => {
-            openIframe("../online/onlinejob.html");
+          card.querySelector("[data-convert]").addEventListener("click", async () => {
+            if (!currentUser) { alert("Sign in first."); return; }
+            const newId = Date.now().toString();
+            const noteParts = [];
+            if (ticket.service) noteParts.push(`Service: ${ticket.service}`);
+            if (ticket.vehicle) noteParts.push(`Vehicle: ${ticket.vehicle}`);
+            if (ticket.notes)   noteParts.push(ticket.notes);
+            const task = {
+              id: newId,
+              customerName:    ticket.name    || '',
+              project:         ticket.ticketNumber || ticket.id || '',
+              customerAddress: ticket.city    || '',
+              customerPhone:   ticket.phone   || '',
+              customerEmail:   '',
+              notes:           noteParts.join('\n'),
+              startOdometer:   '',
+              endOdometer:     null,
+              location:        null,
+              startTime:       null,
+              endTime:         null,
+              segments:        [],
+              fromTicketId:    ticket.id,
+            };
+            try {
+              await set(ref(database, `${currentUser.uid}/tasks/${newId}`), task);
+              if (!['scheduled','completed'].includes(ticket.status)) {
+                await set(ref(database, `public/serviceTickets/${ticket.id}`), { ...ticket, status: 'scheduled', updatedAt: Date.now() });
+              }
+              openIframe(`../../apps/online/onlinejob.html?task=${newId}`);
+            } catch (err) {
+              alert("Failed to create job: " + err.message);
+            }
           });
 
           card.querySelector("[data-invoice]").addEventListener("click", () => {
-            openIframe("../online/onlineinvoice.html");
+            openIframe("../../apps/online/onlineinvoice.html");
           });
 
           card.querySelector("[data-delete]").addEventListener("click", async () => {

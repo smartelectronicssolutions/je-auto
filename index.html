@@ -13,7 +13,7 @@
     />
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="canonical" href="" />
+    <link rel="canonical" href="https://jeautocareservice.com/" />
 
     <!-- Open Graph -->
     <meta
@@ -25,9 +25,49 @@
       content="We come to you — detailing, decals, pressure washing, and mobile mechanic across the Lowcountry."
     />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://jeautocareservice.com/" />
 
-    <!-- Visit Logger -->
-    <script type="module" src="../../assets/js/visitLogger.js"></script>
+    <!-- Visit Logger (inline; this site lives in its own repo so it can't
+         relative-import the shared visitLogger.js from luissolutions.github.io) -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import { getDatabase, ref, push, update, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+      const app = initializeApp({
+        apiKey: "AIzaSyCv2cQGWeXS-w7psrQiZD8dn4R7hStmY1o",
+        authDomain: "persinfo-df93f.firebaseapp.com",
+        databaseURL: "https://persinfo-df93f-default-rtdb.firebaseio.com",
+        projectId: "persinfo-df93f"
+      });
+      const db = getDatabase(app);
+
+      const normalizePage = href => {
+        try {
+          let p = new URL(href).pathname.replace(/^\/+/, '');
+          p = p.replace(/\/index\.html$/, '/');
+          return p || 'index.html';
+        } catch { return 'index.html'; }
+      };
+      const sanitizeIp = ip => (ip || 'unknown').replace(/[.:]/g, '-').replace(/[#$\[\]\/]/g, '_');
+
+      (async () => {
+        let ip = 'unknown';
+        try { ip = (await (await fetch('https://api.ipify.org?format=json')).json()).ip; } catch {}
+        const sip = sanitizeIp(ip);
+        const now = new Date().toISOString();
+        const url = window.location.href;
+        const page = normalizePage(url);
+        try {
+          await runTransaction(ref(db, 'public/log/visitCount'), n => (n || 0) + 1);
+          await push(ref(db, `public/log/visits/${sip}/hits`), { time: now, url, page });
+          await runTransaction(ref(db, `public/log/visits/${sip}`), prev => {
+            const p = prev || {};
+            return { ...p, ip, firstSeen: p.firstSeen || now, lastSeen: now,
+                     lastPage: page, count: (p.count || 0) + 1, hits: p.hits };
+          });
+        } catch (err) { console.error('Visit log error:', err); }
+      })();
+    </script>
     <link rel="stylesheet" href="./assets/css/styles.css" id="stylesheet" />
   </head>
 
@@ -504,7 +544,7 @@
     </footer>
 
     <script type="module">
-      import { database, ref, set } from "../../assets/js/firebase-init.js";
+      import { database, ref, set } from "./assets/js/firebase-init.js";
 
       const ticketForm = document.getElementById("ticketForm");
       const submitTicketBtn = document.getElementById("submitTicketBtn");
@@ -687,7 +727,7 @@
     </script>
 
     <script type="module">
-      import { storage, storageRef, listAll, getDownloadURL } from "../../assets/js/firebase-init.js";
+      import { storage, storageRef, listAll, getDownloadURL } from "./assets/js/firebase-init.js";
 
       const AUTO_MS = 4500;
       let cache = {};
